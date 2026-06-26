@@ -1,0 +1,6 @@
+{
+  "name": "Trajectory",
+  "description": "AI Execution Companion that transforms a user's commitment into an adaptive execution plan, continuously guiding and adjusting the journey until the commitment is completed before its deadline.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

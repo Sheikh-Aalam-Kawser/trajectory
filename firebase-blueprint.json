@@ -1,0 +1,17 @@
+{
+  "collections": {
+    "users": {
+      "fields": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastSignInAt": { "type": "string" },
+        "onboardingCompleted": { "type": "boolean" },
+        "theme": { "type": "string" }
+      },
+      "indexes": []
+    }
+  }
+}
