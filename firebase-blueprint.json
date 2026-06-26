@@ -12,6 +12,56 @@
         "theme": { "type": "string" }
       },
       "indexes": []
+    },
+    "commitments": {
+      "fields": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "priority": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "progressPercentage": { "type": "number" },
+        "completedTasksCount": { "type": "number" },
+        "totalTasksCount": { "type": "number" },
+        "overallConfidence": { "type": "number" },
+        "strategy": { "type": "object" }
+      },
+      "indexes": []
+    },
+    "adaptations": {
+      "fields": {
+        "id": { "type": "string" },
+        "commitmentId": { "type": "string" },
+        "userId": { "type": "string" },
+        "strategyId": { "type": "string" },
+        "parentStrategyId": { "type": "string" },
+        "adaptation_summary": { "type": "string" },
+        "risk_assessment": { "type": "string" },
+        "recovery_strategy": { "type": "string" },
+        "confidence_change": { "type": "object" },
+        "revised_milestones": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "indexes": []
+    },
+    "reflections": {
+      "fields": {
+        "id": { "type": "string" },
+        "commitmentId": { "type": "string" },
+        "userId": { "type": "string" },
+        "generatedAt": { "type": "string" },
+        "execution_summary": { "type": "string" },
+        "success_factors": { "type": "array" },
+        "improvement_opportunities": { "type": "array" },
+        "adaptation_effectiveness": { "type": "string" },
+        "execution_patterns": { "type": "array" },
+        "recommendations": { "type": "array" },
+        "overall_execution_score": { "type": "number" }
+      },
+      "indexes": []
     }
   }
 }

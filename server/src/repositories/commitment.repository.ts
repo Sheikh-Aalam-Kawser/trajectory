@@ -1,103 +1,53 @@
 import { getDb } from '../config/firebase';
 import { logger } from '../logger';
-import { PlanningAgentOutput } from '../agents/planning/types';
-
-export interface Milestone {
-  id: string;
-  title: string;
-  description: string;
-  targetDate: string;
-  estimatedHours: number;
-  status: 'pending' | 'completed' | 'delayed';
-  createdAt: string;
-}
-
-export interface Commitment {
-  id: string;
-  userId: string;
-  title: string;
-  description: string;
-  dueDate: string;
-  priority: 'high' | 'medium' | 'low';
-  status: 'active' | 'completed' | 'failed';
-  createdAt: string;
-  strategy: {
-    title: string;
-    description: string;
-    milestones: Milestone[];
-  };
-}
+import { Commitment } from '../domain/commitment/types';
 
 export class CommitmentRepository {
   private static collectionName = 'commitments';
 
-  static async create(
-    userId: string,
-    title: string,
-    description: string,
-    dueDate: string,
-    priority: 'high' | 'medium' | 'low',
-    strategyOutput: PlanningAgentOutput
-  ): Promise<Commitment> {
+  /**
+   * Generates a unique ID offline for a new commitment record.
+   */
+  static async generateId(): Promise<string> {
+    const db = getDb();
+    if (!db) {
+      throw new Error('Firestore DB not initialized');
+    }
+    return db.collection(this.collectionName).doc().id;
+  }
+
+  /**
+   * Retrieves a specific commitment by its unique ID.
+   */
+  static async getById(id: string): Promise<Commitment | null> {
     const db = getDb();
     if (!db) {
       throw new Error('Firestore DB not initialized');
     }
 
-    // Mark previous active commitments as completed/archived to support only one active commitment at a time
-    try {
-      const activeSnapshot = await db
-        .collection(this.collectionName)
-        .where('userId', '==', userId)
-        .where('status', '==', 'active')
-        .get();
-
-      if (!activeSnapshot.empty) {
-        const batch = db.batch();
-        activeSnapshot.docs.forEach((doc) => {
-          batch.update(doc.ref, { status: 'completed' });
-        });
-        await batch.commit();
-        logger.info(`Archived ${activeSnapshot.size} previous active commitments for user ${userId}`);
-      }
-    } catch (err) {
-      logger.error('Error archiving previous commitments:', err);
+    const docSnap = await db.collection(this.collectionName).doc(id).get();
+    if (!docSnap.exists) {
+      return null;
     }
 
-    const commitmentId = db.collection(this.collectionName).doc().id;
-    
-    // Map milestones and inject IDs & initial status (completed/delayed/pending to mirror realistic trajectory flow)
-    const milestones: Milestone[] = strategyOutput.milestones.map((m, index) => ({
-      id: `milestone-${index + 1}-${Date.now()}`,
-      title: m.title,
-      description: m.description,
-      targetDate: m.targetDate,
-      estimatedHours: m.estimatedHours,
-      status: index === 0 ? 'completed' : index === 1 ? 'delayed' : 'pending',
-      createdAt: new Date().toISOString(),
-    }));
-
-    const commitment: Commitment = {
-      id: commitmentId,
-      userId,
-      title,
-      description,
-      dueDate,
-      priority,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-      strategy: {
-        title: strategyOutput.title,
-        description: strategyOutput.description,
-        milestones,
-      },
-    };
-
-    await db.collection(this.collectionName).doc(commitmentId).set(commitment);
-    logger.info(`Successfully created commitment ${commitmentId} for user ${userId}`);
-    return commitment;
+    return docSnap.data() as Commitment;
   }
 
+  /**
+   * Saves or updates a commitment record in the database.
+   */
+  static async save(commitment: Commitment): Promise<void> {
+    const db = getDb();
+    if (!db) {
+      throw new Error('Firestore DB not initialized');
+    }
+
+    await db.collection(this.collectionName).doc(commitment.id).set(commitment);
+  }
+
+  /**
+   * Retrieves the current single active commitment for a user.
+   */
   static async getActive(userId: string): Promise<Commitment | null> {
     const db = getDb();
     if (!db) {
@@ -118,6 +68,9 @@ export class CommitmentRepository {
     return snapshot.docs[0].data() as Commitment;
   }
 
+  /**
+   * Retrieves all commitments for a user, sorted by creation date.
+   */
   static async getAll(userId: string): Promise<Commitment[]> {
     const db = getDb();
     if (!db) {
@@ -131,5 +84,34 @@ export class CommitmentRepository {
       .get();
 
     return snapshot.docs.map((doc) => doc.data() as Commitment);
+  }
+
+  /**
+   * Archives previous active commitments for a user.
+   * Returns the count of commitments updated.
+   */
+  static async archiveActiveCommitments(userId: string): Promise<number> {
+    const db = getDb();
+    if (!db) {
+      throw new Error('Firestore DB not initialized');
+    }
+
+    const activeSnapshot = await db
+      .collection(this.collectionName)
+      .where('userId', '==', userId)
+      .where('status', '==', 'active')
+      .get();
+
+    if (activeSnapshot.empty) {
+      return 0;
+    }
+
+    const batch = db.batch();
+    activeSnapshot.docs.forEach((doc) => {
+      batch.update(doc.ref, { status: 'completed' });
+    });
+
+    await batch.commit();
+    return activeSnapshot.size;
   }
 }

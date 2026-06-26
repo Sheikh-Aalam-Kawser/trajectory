@@ -12,7 +12,7 @@ import commitmentRouter from './routes/commitment.routes';
 
 async function startServer() {
   const app = express();
-  const PORT = parseInt(env.PORT, 10) || 3000;
+  const PORT = 3000;
 
   // Basic Middlewares
   app.use(
@@ -57,14 +57,14 @@ async function startServer() {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
-      root: path.join(__dirname, '../../client'),
+      root: path.join(process.cwd(), 'client'),
     });
     app.use(vite.middlewares);
   } else {
     logger.info('Starting production static server...');
-    const distPath = path.join(__dirname, '../../dist');
+    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req: Request, res: Response) => {
+    app.get('*', (req: Request, res: Response) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

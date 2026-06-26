@@ -6,7 +6,6 @@ import path from 'path';
 dotenv.config();
 
 const envSchema = z.object({
-  PORT: z.string().default('3000'),
   NODE_ENV: z.string().default('development'),
   GEMINI_API_KEY: z.string().optional(),
   FIREBASE_PROJECT_ID: z.string().optional(),
@@ -22,7 +21,6 @@ if (!parsedEnv.success) {
 }
 
 export const env = parsedEnv.success ? parsedEnv.data : {
-  PORT: process.env.PORT || '3000',
   NODE_ENV: process.env.NODE_ENV || 'development',
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
