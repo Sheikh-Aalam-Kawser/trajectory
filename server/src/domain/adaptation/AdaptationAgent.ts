@@ -1,4 +1,4 @@
-import { getGeminiClient, STANDARD_GEMINI_MODEL, STANDARD_GEMINI_VERSION } from '../../config/gemini';
+import { GeminiService, getActiveModel, STANDARD_GEMINI_VERSION } from '../../config/gemini';
 import { parseAdaptationResponse } from './AdaptationParser';
 import { AdaptationAgentInput, AdaptationAgentOutput } from './AdaptationTypes';
 import { AdaptationResponseSchema } from './AdaptationSchema';
@@ -7,6 +7,8 @@ import { logger } from '../../logger';
 import { env } from '../../config/env';
 
 export class AdaptationAgent {
+  public static readonly PROMPT_VERSION = 'adaptation/v1';
+
   static async run(input: AdaptationAgentInput): Promise<AIAgentResponse<AdaptationAgentOutput>> {
     const startTime = Date.now();
     logger.info(`Running AdaptationAgent for commitment ID: ${input.commitmentId}`);
@@ -26,9 +28,8 @@ export class AdaptationAgent {
         return `Milestone ${mIdx + 1}: ${m.title}\nDescription: ${m.description}\nTarget Date: ${m.targetDate}\nStatus: ${m.status}\nTasks:\n${tasksText}`;
       }).join('\n\n');
 
-      const ai = getGeminiClient();
-      const response = await ai.models.generateContent({
-        model: STANDARD_GEMINI_MODEL,
+      const responseText = await GeminiService.generateStructuredText({
+        promptVersion: AdaptationAgent.PROMPT_VERSION,
         contents: `Commitment: "${input.title}"
 Description: "${input.description || 'None'}"
 Main Deadline: ${input.dueDate}
@@ -43,8 +44,7 @@ User Feedback/Reason for Adaptation: "${input.userReason || 'None provided'}"
 
 --- CURRENT STRATEGY & TASK STATUSES ---
 ${milestoneContext}`,
-        config: {
-          systemInstruction: `You are the AI Adaptation Agent for Trajectory, an autonomous commitment execution system.
+        systemInstruction: `You are the AI Adaptation Agent for Trajectory, an autonomous commitment execution system.
 Your goal is to answer: "Given what has actually happened, what is now the best way to complete this commitment before the deadline?"
 
 You must perform a meticulous analysis of:
@@ -61,15 +61,8 @@ Enforce the following strict rules:
 - Keep the exact same task and milestone IDs in your response so lineage is preserved.
 - Adjust milestone target dates only if absolutely necessary, but they MUST NEVER exceed the main deadline: ${input.dueDate}.
 - Ensure the output conforms perfectly to the requested JSON response schema.`,
-          responseMimeType: 'application/json',
-          responseSchema: AdaptationResponseSchema as any,
-        }
+        responseSchema: AdaptationResponseSchema as any,
       });
-
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error('Empty response received from Gemini API');
-      }
 
       const parsedResult = parseAdaptationResponse(responseText);
 
@@ -78,7 +71,7 @@ Enforce the following strict rules:
         data: parsedResult,
         metadata: {
           agent: 'adaptation',
-          model: STANDARD_GEMINI_MODEL,
+          model: getActiveModel(),
           timestamp: new Date().toISOString(),
           version: STANDARD_GEMINI_VERSION,
           latency: Date.now() - startTime,

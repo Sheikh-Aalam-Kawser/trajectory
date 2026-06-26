@@ -1,12 +1,13 @@
-import { getGeminiClient, STANDARD_GEMINI_MODEL, STANDARD_GEMINI_VERSION } from '../../config/gemini';
+import { GeminiService, Type, getActiveModel, STANDARD_GEMINI_VERSION } from '../../config/gemini';
 import { parsePlanningResponse } from './parser';
 import { PlanningAgentInput, PlanningAgentOutput } from './types';
 import { AIAgentResponse } from '../../types';
 import { logger } from '../../logger';
-import { Type } from '@google/genai';
 import { env } from '../../config/env';
 
 export class PlanningAgent {
+  public static readonly PROMPT_VERSION = 'planning/v1';
+
   static async run(input: PlanningAgentInput): Promise<AIAgentResponse<PlanningAgentOutput>> {
     const startTime = Date.now();
     logger.info(`Running PlanningAgent for commitment: "${input.commitment}"`);
@@ -18,12 +19,10 @@ export class PlanningAgent {
         throw new Error('GEMINI_API_KEY is not configured');
       }
 
-      const ai = getGeminiClient();
-      const response = await ai.models.generateContent({
-        model: STANDARD_GEMINI_MODEL,
+      const responseText = await GeminiService.generateStructuredText({
+        promptVersion: PlanningAgent.PROMPT_VERSION,
         contents: `Commitment Title: "${input.commitment}"\nTarget Completion Date: "${input.dueDate}"\nAdditional Context/Notes: "${input.notes || 'None'}"`,
-        config: {
-          systemInstruction: `You are the AI Planning Agent for Trajectory, an autonomous commitment execution system.
+        systemInstruction: `You are the AI Planning Agent for Trajectory, an autonomous commitment execution system.
 Your job is to analyze the user's high-stakes commitment and break it down into exactly 3 realistic, sequential, actionable milestones.
 For each milestone, you must generate:
 1. title: A concise, highly professional milestone name.
@@ -32,42 +31,39 @@ For each milestone, you must generate:
 4. estimatedHours: Expected effort in hours.
 
 Ensure the output is robust and perfectly tailored to the commitment context.`,
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: {
-                type: Type.STRING,
-                description: 'The overall title of the execution strategy.'
-              },
-              description: {
-                type: Type.STRING,
-                description: 'A comprehensive summary of the strategy.'
-              },
-              milestones: {
-                type: Type.ARRAY,
-                description: 'Exactly 3 sequential milestones.',
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    title: { type: Type.STRING },
-                    description: { type: Type.STRING },
-                    targetDate: { type: Type.STRING },
-                    estimatedHours: { type: Type.INTEGER }
-                  },
-                  required: ['title', 'description', 'targetDate', 'estimatedHours']
-                }
-              }
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: {
+              type: Type.STRING,
+              description: 'The overall title of the execution strategy.'
             },
-            required: ['title', 'description', 'milestones']
-          }
+            description: {
+              type: Type.STRING,
+              description: 'A comprehensive summary of the strategy.'
+            },
+            milestones: {
+              type: Type.ARRAY,
+              description: 'Exactly 3 sequential milestones.',
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  targetDate: { type: Type.STRING },
+                  estimatedHours: { type: Type.INTEGER }
+                },
+                required: ['title', 'description', 'targetDate', 'estimatedHours']
+              }
+            }
+          },
+          required: ['title', 'description', 'milestones']
         }
       });
 
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error('Empty response received from Gemini API');
-      }
+      console.log('========== RAW MODEL OUTPUT START ==========');
+      console.log(responseText);
+      console.log('========== RAW MODEL OUTPUT END ==========');
 
       const parsedResult = parsePlanningResponse(responseText);
 
@@ -76,7 +72,7 @@ Ensure the output is robust and perfectly tailored to the commitment context.`,
         data: parsedResult,
         metadata: {
           agent: 'planning',
-          model: STANDARD_GEMINI_MODEL,
+          model: getActiveModel(),
           timestamp: new Date().toISOString(),
           version: STANDARD_GEMINI_VERSION,
           latency: Date.now() - startTime,

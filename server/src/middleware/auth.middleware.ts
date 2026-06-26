@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { getAuth } from '../config/firebase';
+import { AuthVerifier } from '../auth';
 import { AuthenticatedRequest, StandardAPIResponse } from '../types';
 import { logger } from '../logger';
 
@@ -21,32 +21,24 @@ export const authenticate = async (
   }
 
   const idToken = authHeader.split('Bearer ')[1];
-  const authAdmin = getAuth();
-
-  if (!authAdmin) {
-    logger.error('Authentication configuration error: Firebase Admin Auth is not configured');
-    res.status(500).json({
-      success: false,
-      message: 'Server Error: Auth service unavailable',
-      errorCode: 'AUTH_SERVICE_UNAVAILABLE'
-    });
-    return;
-  }
 
   try {
-    const decodedToken = await authAdmin.verifyIdToken(idToken);
-    
-    req.user = {
-      uid: decodedToken.uid,
-      email: decodedToken.email || null,
-      displayName: decodedToken.name || null,
-      photoURL: decodedToken.picture || null,
-      emailVerified: decodedToken.email_verified || false,
-    };
-
+    const user = await AuthVerifier.verify(idToken);
+    req.user = user;
     next();
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Authentication error during ID token verification:', error);
+    
+    // Check if the failure is due to configuration/unavailability
+    if (error?.message?.includes('not configured') || error?.message?.includes('not initialized') || error?.message?.includes('unavailable')) {
+      res.status(500).json({
+        success: false,
+        message: 'Server Error: Auth service unavailable',
+        errorCode: 'AUTH_SERVICE_UNAVAILABLE'
+      });
+      return;
+    }
+
     res.status(401).json({
       success: false,
       message: 'Unauthorized: Invalid or expired token',
@@ -54,3 +46,4 @@ export const authenticate = async (
     });
   }
 };
+
